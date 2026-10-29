@@ -301,7 +301,7 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     const { sim } = hist(done); const rows = [];
     for (let r = joined(); r < done; r++) {
       const b = TM.sumH(sim.starts[r]), a = TM.sumH(sim.ends[r]); const ch = TM.eraChart(`${pre}-h${r}`, r, "sm", false);
-      rows.push(`<details class="group border-b border-line py-3" ${openLatest && r === done - 1 ? "open" : ""}><summary class="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-3 text-base"><span class="font-semibold">${TM.ERA_DASH[r]}</span><span class="tnum">${TM.wan(b)} → <b>${TM.wan(a)}</b> ${TM.chg(a / b)}</span></summary><div class="pt-3">${ch.html}${ui.legend(ch.series)}<div class="mt-3">${TM.returnsTable(r, sim.starts[r])}</div></div></details>`);
+      rows.push(`<details class="group border-b border-line py-3" ${openLatest && r === done - 1 ? "open" : ""}><summary class="flex min-h-[44px] cursor-pointer list-none flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-base"><span class="whitespace-nowrap font-semibold tnum">${TM.ERA_DASH[r]}</span><span class="whitespace-nowrap">${TM.chg(a / b)}</span><span class="w-full tnum text-ink2">${TM.wan(b)} → <b class="text-ink">${TM.wan(a)}</b></span></summary><div class="pt-3">${ch.html}${ui.legend(ch.series)}<div class="mt-3">${TM.returnsTable(r, sim.starts[r])}</div></div></details>`);
     }
     return ui.card(ui.head("你的資產變化", "點開可以看那五年的走勢") + (rows.length ? `<div class="border-t border-line">${rows.join("")}</div>` : `<p class="text-ink2">還沒有結算的輪次。</p>`));
   }
