@@ -348,7 +348,7 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     }
     if (g.phase === "locked") {
       const list = [hd, { id: "top", key: [g.round, done, rk, fz], html: topHTML }, { id: "locked", key: [g.round, fz, hashOf(sum.dist && sum.dist[g.round]), S.cur && S.cur.val], html: lockedHTML }];
-      if (done > 0) list.push({ id: "board", key: [rk], html: () => boardHTML(done) }, { id: "hist", key: [done, fz], html: () => historyHTML(done, true) });
+      if (done > 0) list.push({ id: "board", key: [rk], html: () => boardHTML(done) }, { id: "hist", key: [done, fz], html: () => historyHTML(done, false) });
       return render(list);
     }
     if (g.phase === "final") return render([hd, { id: "final", key: [rk, fz], html: finalHTML }, { id: "board", key: [rk], html: () => boardHTML(4) }, { id: "hist", key: [fz], html: () => historyHTML(4, false) }]);
