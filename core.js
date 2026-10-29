@@ -20,12 +20,12 @@ TM.CATS = [
 TM.CASH = { key: "cash", cat: "現金",   c: "--s-cash", name: "定存", ticker: "" };
 TM.OPT  = { key: "opt",  cat: "光通訊", c: "--s-opt",  name: "矽光子、CPO", ticker: "" };
 
-TM.N = 251; TM.CP = [0, 60, 120, 180, 250]; TM.ROUNDS = 4; TM.START = 100000;
+TM.N = 251; TM.CP = [0, 60, 120, 180, 240]; /* 2005/12、2010/12、2015/12、2020/12、2025/12 的月底收盤 */ TM.ROUNDS = 4; TM.START = 100000;
 TM.YEAR = [2006, 2011, 2016, 2021, 2026];
-TM.CP_FULL = ["2006 年 1 月", "2011 年 1 月", "2016 年 1 月", "2021 年 1 月", "2026 年 10 月"];
-TM.ERA = ["2006 → 2010", "2011 → 2015", "2016 → 2020", "2021 → 2026"];
-TM.ERA_DASH = ["2006–2010", "2011–2015", "2016–2020", "2021–2026"];
-TM.YEARS = [5, 5, 5, 5 + 10 / 12];
+TM.CP_FULL = ["2006 年 1 月", "2011 年 1 月", "2016 年 1 月", "2021 年 1 月", "2026 年 1 月"];
+TM.ERA = ["2006 → 2010", "2011 → 2015", "2016 → 2020", "2021 → 2025"];
+TM.ERA_DASH = ["2006–2010", "2011–2015", "2016–2020", "2021–2025"];
+TM.YEARS = [5, 5, 5, 5];
 TM.KEYS = TM.CATS.map(c => c.key);
 TM.AKEYS = [...TM.KEYS, "cash"];
 TM.PKEYS = [...TM.KEYS, "opt", "cash"];
@@ -194,12 +194,13 @@ TM.eraChart = (id, r, size = "lg", animate = true) => {
   return { series, html: TM.lineChart(id, { ...SIZES[size], n, series, ticks: MULT_TICKS, ref: 1, tickFmt: TM.xfmt, endFmt: TM.xfmt, xticks: xt, animate, tipTitle: i => TM.monthLabel(a + i), tipFmt: TM.xfmt, aria: `${TM.ERA[r]} 各公司含息報酬倍數` }) };
 };
 TM.fullChart = (id, youVals, size = "lg") => {
-  const series = TM.CATS.map(c => { const s = TM.SER[c.pick]; return { label: TM.COS[c.pick].name, color: TM.col(c.key), values: s.map(v => v == null ? null : TM.START * v / s[0]) }; });
-  series.push({ label: "大盤", color: "var(--ink2)", dash: true, values: TM.SER.TRI.map(v => TM.START * v / TM.SER.TRI[0]) });
-  if (youVals) { const you = new Array(TM.N).fill(null); TM.CP.forEach((ix, k) => { if (youVals[k] != null) you[ix] = youVals[k]; }); series.push({ label: "你", color: "var(--ink)", thick: true, connect: true, dots: true, values: you }); }
+  const end = TM.CP[TM.ROUNDS], n = end + 1, cut = s => s.slice(0, n);
+  const series = TM.CATS.map(c => { const s = TM.SER[c.pick]; return { label: TM.COS[c.pick].name, color: TM.col(c.key), values: cut(s).map(v => v == null ? null : TM.START * v / s[0]) }; });
+  series.push({ label: "大盤", color: "var(--ink2)", dash: true, values: cut(TM.SER.TRI).map(v => TM.START * v / TM.SER.TRI[0]) });
+  if (youVals) { const you = new Array(n).fill(null); TM.CP.forEach((ix, k) => { if (youVals[k] != null) you[ix] = youVals[k]; }); series.push({ label: "你", color: "var(--ink)", thick: true, connect: true, dots: true, values: you }); }
   const xt = (size === "sm" ? [0, 120, 240] : [0, 60, 120, 180, 240]).map(i => ({ i, label: String(TM.yearOf(i + 1)) }));
   const sz = size === "sm" ? { ...SIZES.sm, r: 104 } : { ...SIZES.lg, r: 136, h: 400 };
-  return { series, html: TM.lineChart(id, { ...sz, n: TM.N, series, ticks: MONEY_TICKS, ref: 1e5, tickFmt: t => t >= 1e4 ? `${t / 1e4} 萬` : `${t / 1e3} 千`, endFmt: TM.wan, xticks: xt, animate: true, tipTitle: TM.monthLabel, tipFmt: TM.wan, aria: "2006 年投入 10 萬元到 2026 年的價值" }) };
+  return { series, html: TM.lineChart(id, { ...sz, n: end + 1, series, ticks: MONEY_TICKS, ref: 1e5, tickFmt: t => t >= 1e4 ? `${t / 1e4} 萬` : `${t / 1e3} 千`, endFmt: TM.wan, xticks: xt, animate: true, tipTitle: TM.monthLabel, tipFmt: TM.wan, aria: "2006 年初投入 10 萬元到 2025 年底的價值" }) };
 };
 
 /* ===== 介面元件（Tailwind） ===== */

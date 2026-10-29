@@ -66,7 +66,7 @@ TM.startBots = (db, gid, n = 35, speed = 1) => {
       const key = `${g.epoch}-${g.round}`;
       if (g.phase === "open" && g.round >= b.jr && !b.acted[key]) {
         b.acted[key] = true; const r = g.round;
-        later(1500 + rnd() * 9000, () => { const gg = game; if (!gg || gg.phase !== "open" || gg.round !== r || gg.epoch !== b.epoch) { b.acted[key] = false; return; } const val = decide(b, r); if (val === null && r === b.jr) return; b.store.update(pa.me(b.store.uid), { [`allocs.${r}`]: val, updatedAt: Date.now() }); });
+        later(1500 + rnd() * 9000, () => { const gg = game; if (!gg || gg.phase !== "open" || gg.round !== r || gg.epoch !== b.epoch) { b.acted[key] = false; return; } const val = decide(b, r); if (val === null && r === b.jr) return; b.store.update(pa.me(b.store.uid), { [`allocs.${r}`]: val, ...(rnd() < 0.8 ? { [`locks.${r}`]: true } : {}), updatedAt: Date.now() }); });
       }
       if (g.phase === "predict" && !b.acted["pred" + g.epoch]) {
         b.acted["pred" + g.epoch] = true;

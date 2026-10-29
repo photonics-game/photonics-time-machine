@@ -9,6 +9,7 @@ TM.paths = P;
 const zeros = keys => Object.fromEntries(keys.map(k => [k, 0]));
 const hashOf = v => JSON.stringify(v ?? null);
 const active = (players, game) => players.filter(p => game && p.epoch === game.epoch && typeof p.name === "string");
+const lockedIn = (p, r) => !!(p.locks && p.locks[r]);
 TM.roundToTenths = w => {
   const raw = TM.AKEYS.map(k => [k, (w[k] || 0) * 10]); const out = Object.fromEntries(raw.map(([k, v]) => [k, Math.floor(v)]));
   let left = 10 - Object.values(out).reduce((a, b) => a + b, 0);
@@ -66,7 +67,7 @@ TM.mountHost = (root, store, gid, opts = {}) => {
     const g = S.game; if (!g || !S.sum) return;
     const ps = active(S.players, g);
     const patch = { count: ps.length }; if (g.phase === "lobby") patch.names = ps.slice().sort((a, b) => (b.joinedAt || 0) - (a.joinedAt || 0)).slice(0, 40).map(p => p.name);
-    if (g.phase === "open") patch.sent = ps.filter(p => p.allocs && p.allocs[g.round] !== undefined).length;
+    if (g.phase === "open") { patch.sent = ps.filter(p => p.allocs && p.allocs[g.round] !== undefined).length; patch.lockN = ps.filter(p => lockedIn(p, g.round)).length; }
     if (g.phase === "predict" || g.phase === "final") {
       const subs = ps.map(p => TM.cleanT(p.pred, TM.PKEYS)).filter(t => t && TM.sumT(t) === 10);
       const agg = Object.fromEntries(TM.PKEYS.map(k => [k, 0])); for (const t of subs) for (const k in t) agg[k] += t[k] / 10 / subs.length;
@@ -118,7 +119,7 @@ TM.mountHost = (root, store, gid, opts = {}) => {
   function primary() {
     const g = S.game, sum = S.sum || {};
     if (g.phase === "lobby") return { label: "開始遊戲", act: "start", hint: "按下後：全班手機進入 2006 年的分配畫面。" };
-    if (g.phase === "open") return { label: `鎖定第 ${g.round + 1} 輪`, act: "lock", hint: "背景講完再按。按下後：手機不能再修改，顯示全班押在哪。" };
+    if (g.phase === "open") return { label: `鎖定第 ${g.round + 1} 輪`, act: "lock", hint: "背景講完、大部分人鎖定後再按。按下後：還沒鎖定的人也一起定案（沒分完的算現金），手機顯示全班押在哪。" };
     if (g.phase === "locked") { const ready = sum.frozen && sum.frozen[g.round]; return { label: g.round < 3 ? "快轉 5 年" : "快轉到 2026 年", act: "advance", hint: ready ? `這五年講完再按。按下後：手機跳到 ${g.round < 3 ? TM.YEAR[g.round + 1] + " 年，顯示走勢、成績、名次，並開放下一輪分配" : "最後結果"}。` : "統計全班配置中，請稍候…", disabled: !ready }; }
     if (g.phase === "final") return { label: "開放 2031 預測（選用）", act: "predict", hint: "時間不夠可以不按。按下後：手機出現 2031 預測。" };
     return { label: "預測進行中", act: "", hint: "全班的預測會即時更新在下面。", disabled: true };
@@ -127,9 +128,9 @@ TM.mountHost = (root, store, gid, opts = {}) => {
     const g = S.game, sum = S.sum || {}, ps = active(S.players, g);
     if (g.phase === "lobby") return joinCard() + namesCard(ps);
     if (g.phase === "open") {
-      const sent = ps.filter(p => p.allocs && p.allocs[g.round] !== undefined).length;
+      const nLock = ps.filter(p => lockedIn(p, g.round)).length;
       const ws = ps.filter(p => (p.joinedRound ?? 0) <= g.round).map(p => TM.weightsOf(TM.simulate(TM.effAllocs(p.id, sum, { ...p.allocs }, g.round), p.joinedRound ?? 0, g.round).starts[g.round]));
-      return (g.done > 0 ? rankCard(g.done) : "") + ui.card(ui.head("目前的配置（即時）", `${sent} / ${ps.length} 人已送出`) + TM.distBar(TM.distOf(ws)));
+      return (g.done > 0 ? rankCard(g.done) : "") + ui.card(ui.head("目前的配置（即時）", `${nLock} / ${ps.length} 人已鎖定`) + TM.distBar(TM.distOf(ws)));
     }
     if (g.phase === "locked") {
       const d = sum.dist && sum.dist[g.round];
@@ -169,8 +170,9 @@ TM.mountHost = (root, store, gid, opts = {}) => {
     if (g === undefined) return render([{ id: "load", key: "l", html: () => ui.card(`<p class="text-ink2">連線中…</p>`) }]);
     if (S.err && !g) return render([{ id: "err", key: S.err, html: () => ui.card(`<p class="text-up">${esc(S.err)}</p>`) }]);
     const ps = active(S.players, g), pr = primary();
+    const nLock = g.phase === "open" ? ps.filter(p => lockedIn(p, g.round)).length : null;
     const undoable = g.phase !== "lobby";
-    const ctl = () => ui.card(`<div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm text-ink2">目前狀態</p><p class="text-2xl font-black tracking-tight">${phaseText(g)}</p></div><div class="text-right"><p class="text-sm text-ink2">已加入</p><p class="text-2xl font-black tnum">${ps.length} 人</p></div></div>
+    const ctl = () => ui.card(`<div class="flex flex-wrap items-center justify-between gap-3"><div><p class="text-sm text-ink2">目前狀態</p><p class="text-2xl font-black tracking-tight">${phaseText(g)}</p></div><div class="text-right"><p class="text-sm text-ink2">${nLock === null ? "已加入" : "已鎖定 / 已加入"}</p><p class="text-2xl font-black tnum">${nLock === null ? `${ps.length} 人` : `${nLock} / ${ps.length} 人`}</p></div></div>
       <div class="mt-4">${stepsHTML()}</div>
       <div class="mt-6">${pr.act ? `<button type="button" data-run="${pr.act}" class="${ui.BTN} h-14 w-full bg-brand text-lg text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-mist disabled:text-ink2" ${pr.disabled || S.busy ? "disabled" : ""}>${S.busy ? "處理中…" : pr.label}</button>` : ""}<p class="mt-2 text-base text-ink2">${pr.hint}</p></div>
       ${S.err ? `<p class="mt-3 rounded-lg bg-mist p-3 text-base text-up">${esc(S.err)}</p>` : ""}
@@ -179,8 +181,8 @@ TM.mountHost = (root, store, gid, opts = {}) => {
         ${S.confirm === "reset" ? `<span class="self-center text-base">確定重設？全班要重新加入。</span>${ui.danger("確定重設", 'data-run="reset"')}${ui.secondary("取消", 'data-confirm=""')}` : ui.secondary("重設遊戲", 'data-confirm="reset"')}
       </div>`);
     render([
-      { id: "ctl", key: [g, ps.length, S.busy, S.err, S.confirm, S.sum && S.sum.frozen && S.sum.frozen[g.round] ? 1 : 0], html: ctl },
-      { id: "info", key: [g, S.sum && { d: S.sum.dist, r: S.sum.rankings, p: S.sum.pred }, g.phase === "lobby" || g.phase === "open" ? S.players.map(p => [p.id, p.name, p.epoch, p.allocs && p.allocs[g.round]]) : 0], html: () => `<div class="space-y-6">${infoHTML()}</div>` },
+      { id: "ctl", key: [g, ps.length, nLock, S.busy, S.err, S.confirm, S.sum && S.sum.frozen && S.sum.frozen[g.round] ? 1 : 0], html: ctl },
+      { id: "info", key: [g, S.sum && { d: S.sum.dist, r: S.sum.rankings, p: S.sum.pred }, g.phase === "lobby" || g.phase === "open" ? S.players.map(p => [p.id, p.name, p.epoch, p.allocs && p.allocs[g.round], lockedIn(p, g.round)]) : 0], html: () => `<div class="space-y-6">${infoHTML()}</div>` },
       ...(opts.links ? [{ id: "links", key: "links", html: () => opts.links }] : [])
     ]);
   }
@@ -206,7 +208,7 @@ TM.barsHTML = barsHTML;
 /* ===================== 玩家（手機） ===================== */
 TM.mountPlayer = (root, store, gid, opts = {}) => {
   const pa = P(gid), uid = store.uid, pre = opts.prefix || "p";
-  const S = { game: undefined, sum: null, me: undefined, cur: null, curKey: "", pdraft: zeros(TM.PKEYS), pinit: false, save: "", nameDraft: "", joinErr: "", joining: false };
+  const S = { game: undefined, sum: null, me: undefined, cur: null, curKey: "", pdraft: zeros(TM.PKEYS), pinit: false, save: "", nameDraft: "", joinErr: "", joining: false, ask: false, locking: false, lockErr: "" };
   const render = sections(root); const unsubs = []; let saveTimer = null, pending = null;
   const meP = pa.me(uid);
 
@@ -224,8 +226,9 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     const key = `${g.epoch}-${g.round}`; if (S.curKey === key) return;
     S.curKey = key; const a = S.me.allocs || {}, has = a[g.round] !== undefined;
     S.cur = { r: g.round, val: has ? a[g.round] : null, touched: has, fresh: !has && g.round === joined() };
-    S.save = "";
+    S.save = ""; S.ask = false; S.locking = false; S.lockErr = "";
   }
+  const selfLocked = () => { const g = S.game; return !!(g && g.phase === "open" && S.me && lockedIn(S.me, g.round)); };
   function capital(r) { return hist(r).sim.total; }
   function heldNow(r) { /* 續抱時的持股（上一輪結束的持股） */
     const eff = { ...TM.effAllocs(uid, S.sum, own(), r) }; eff[r] = null; return TM.simulate(eff, joined(), r).starts[r] || { cash: TM.START };
@@ -279,21 +282,33 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
         <span class="abar absolute -bottom-px left-0 h-0.5" style="width:${v * 10}%;background:${TM.col(k)}"></span></div>`; }).join("");
     const preset = (id, label, on = false) => `<button type="button" data-preset="${id}" class="inline-flex h-11 items-center rounded-lg border px-4 text-base transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand ${on ? "border-brand bg-brand text-white" : "border-line bg-white hover:bg-mist"}">${label}</button>`;
     const status = hold ? "目前：續抱不動，沿用上一輪的持股。" : sum === 10 ? "已分配 100%。" : `已分配 <b class="tnum">${sum * 10}%</b>，剩下 <b class="tnum">${(10 - sum) * 10}%</b>（${TM.wan(cap * (10 - sum) / 10)}）算現金。`;
-    return ui.card(ui.head(r === joined() && !held ? `分配你的 ${TM.wan(capital(r))}` : `${TM.YEAR[r]} 年：要調整配置嗎？`, "每格 10%，鎖定前都可以改") + `<div class="border-t border-line">${rows}</div>
+    const can = hold || sum === 10;
+    const lockArea = S.ask
+      ? `<div class="mt-4 rounded-lg border border-brand p-4"><p class="text-base font-semibold">確定鎖定？鎖定後這一輪就不能再改。</p><div class="mt-3 flex flex-wrap gap-2">${ui.primary(S.locking ? "鎖定中…" : "確定鎖定", `data-lock="yes" ${S.locking ? "disabled" : ""}`)}${ui.secondary("再想想", `data-lock="no" ${S.locking ? "disabled" : ""}`)}</div>${S.lockErr ? `<p class="mt-2 text-base text-up">${S.lockErr}</p>` : ""}</div>`
+      : `<div class="mt-4 border-t border-line pt-4"><button type="button" data-lock="ask" class="${ui.BTN} w-full bg-brand text-white hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-mist disabled:text-ink2" ${can ? "" : "disabled"}>鎖定我的配置</button><p class="mt-2 text-base text-ink2">${can ? "鎖定後這一輪就不能再改。" : "分配到 100% 才能鎖定；不想投的部分可以放「現金」。"}</p></div>`;
+    return ui.card(ui.head(r === joined() && !held ? `分配你的 ${TM.wan(capital(r))}` : `${TM.YEAR[r]} 年：要調整配置嗎？`, "每格 10%，投滿 100% 就能鎖定") + `<div class="border-t border-line">${rows}</div>
       <div class="mt-4 flex flex-wrap gap-2">${preset("even", "五家平均")}${preset("cash", "全部現金")}${preset("clear", "清空")}${held ? preset("hold", "續抱不動", hold) : ""}</div>
-      <p class="mt-4 text-base">${status}</p><p class="mt-1 min-h-[1.5em] text-sm ${S.save === "error" ? "text-up" : "text-ink2"}">${saveTxt}</p>`);
+      <p class="mt-4 text-base">${status}</p><p class="mt-1 min-h-[1.5em] text-sm ${S.save === "error" ? "text-up" : "text-ink2"}">${saveTxt}</p>${lockArea}`);
+  }
+  function mineList(r) {
+    const mine = r >= joined() ? (TM.simulate(TM.effAllocs(uid, S.sum, own(), r + 1), joined(), r).starts[r] || { cash: TM.START }) : { cash: TM.START }, tot = TM.sumH(mine);
+    const items = TM.AKEYS.filter(k => mine[k] > 0.5).sort((a, b) => mine[b] - mine[a]);
+    return { items, html: `<ul class="mt-2 divide-y divide-line border-y border-line">${items.map(k => `<li class="flex items-center gap-3 py-2.5 text-base"><i class="dot" style="--c:${TM.col(k)}"></i><span class="font-semibold">${TM.META[k].cat}</span><span class="text-ink2">${TM.coOf(k).name}</span><span class="ml-auto tnum">${TM.wan(mine[k])}</span><span class="w-12 text-right tnum text-ink2">${(mine[k] / tot * 100).toFixed(0)}%</span></li>`).join("")}</ul>` };
+  }
+  function selfLockedHTML() {
+    const g = S.game, r = g.round, sum = S.sum || {};
+    return ui.card(`<div class="rounded-lg bg-mist p-4"><p class="text-lg font-bold">你已鎖定・${TM.YEAR[r]} 年的配置</p><p class="text-base text-ink2">等主持人鎖定全班。目前 <b class="tnum text-ink">${Math.max(sum.lockN || 0, 1)}</b> / ${sum.count || 1} 人已鎖定。</p></div>
+      <h2 class="mt-5 text-xl font-bold">你的配置</h2>${mineList(r).html}`);
   }
   function lockedHTML() {
     const g = S.game, r = g.round, sum = S.sum || {};
-    const mine = r >= joined() ? (TM.simulate(TM.effAllocs(uid, S.sum, own(), r + 1), joined(), r).starts[r] || { cash: TM.START }) : { cash: TM.START }, tot = TM.sumH(mine);
-    const items = TM.AKEYS.filter(k => mine[k] > 0.5).sort((a, b) => mine[b] - mine[a]);
+    const { items, html: mineHTML } = mineList(r);
     const d = sum.dist && sum.dist[r];
     let line = "";
     if (d) { const topK = TM.AKEYS.slice().sort((a, b) => (d[b] || 0) - (d[a] || 0))[0], myK = items[0];
       line = `全班最多錢押在<b>${TM.META[topK].cat}</b>（${((d[topK] || 0) * 100).toFixed(0)}%）${myK ? `，你押最多的是<b>${TM.META[myK].cat}</b>` : ""}。`; }
     return ui.card(`<div class="rounded-lg bg-mist p-4"><p class="text-lg font-bold">已鎖定・${TM.YEAR[r]} 年的配置</p><p class="text-base text-ink2">五年後揭曉，先聽台上怎麼說。</p></div>
-      <h2 class="mt-5 text-xl font-bold">你的配置</h2>
-      <ul class="mt-2 divide-y divide-line border-y border-line">${items.map(k => `<li class="flex items-center gap-3 py-2.5 text-base"><i class="dot" style="--c:${TM.col(k)}"></i><span class="font-semibold">${TM.META[k].cat}</span><span class="text-ink2">${TM.coOf(k).name}</span><span class="ml-auto tnum">${TM.wan(mine[k])}</span><span class="w-12 text-right tnum text-ink2">${(mine[k] / tot * 100).toFixed(0)}%</span></li>`).join("")}</ul>`)
+      <h2 class="mt-5 text-xl font-bold">你的配置</h2>${mineHTML}`)
       + ui.card(ui.head("全班押在哪", d ? `${(sum.distN || {})[r] || 0} 人` : "統計中…") + (d ? TM.distBar(d) + `<p class="mt-4 border-t border-line pt-3 text-base">${line}</p>` : `<p class="text-ink2">主持人鎖定後幾秒內會出現。</p>`));
   }
   function boardHTML(done) { return ui.card(ui.head("排行榜", (S.sum && S.sum.rankings && S.sum.rankings[done] ? `${S.sum.rankings[done].length} 人` : "")) + TM.leaderTable(S.sum && S.sum.rankings && S.sum.rankings[done], uid, 10)); }
@@ -313,7 +328,7 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     const opts2 = [...TM.CATS.map(c => ({ l: `全押${TM.COS[c.pick].name}`, v: v(c) })), { l: "買大盤", v: tri }, { l: "五家平均，不調整", v: even }, { l: "你", v: fin, me: true }].sort((a, b) => b.v - a.v);
     const vals = TM.CP.map((_, k) => k < joined() ? null : k === joined() ? TM.START : TM.sumH(sim.ends[k - 1]));
     const ch = TM.fullChart(`${pre}-full`, vals, "sm");
-    return ui.card(`<p class="text-base font-semibold text-ink2">最後結果・${TM.YEAR[joined()]} 年 → 2026 年</p><h1 class="mt-1 text-2xl font-black tracking-tight">你的 10 萬元變成</h1>
+    return ui.card(`<p class="text-base font-semibold text-ink2">最後結果・${TM.YEAR[joined()]} 年初 → 2025 年底</p><h1 class="mt-1 text-2xl font-black tracking-tight">你的 10 萬元變成</h1>
       <p class="mt-2 text-[48px] font-black leading-none tracking-tight tnum" data-count-from="${TM.START}" data-count-to="${fin}">${TM.wan(fin)}</p>
       <p class="mt-3 text-base">${TM.chg(fin / TM.START)}${rk >= 0 ? `，全班 ${list.length} 人中第 <b class="tnum">${rk + 1}</b> 名` : ""}</p>`)
       + ui.card(ui.head("如果當初⋯", "一次買進，之後都不動") + `<table class="w-full border-collapse text-base"><tbody>${opts2.map(o => `<tr class="border-b border-line ${o.me ? "bg-mist font-semibold" : ""}"><td class="py-2.5 pl-2">${o.l}</td><td class="py-2.5 text-right tnum">${TM.wan(o.v)}</td><td class="py-2.5 pr-2 text-right tnum text-ink2">${TM.xfmt(o.v / TM.START)}</td></tr>`).join("")}</tbody></table>`)
@@ -342,7 +357,8 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     if (g.phase === "open") {
       const list = [hd, { id: "top", key: [g.round, done, rk, fz, S.cur && S.cur.val, joined()], html: topHTML }];
       if (done > 0 && done - 1 >= joined()) list.push({ id: "res" + done, key: [rk, fz], html: resultHTML });
-      list.push({ id: "alloc", key: [g.round, S.cur, S.save, fz], html: allocHTML });
+      const sl = selfLocked();
+      list.push(sl ? { id: "alloc", key: ["L", g.round, fz, S.me.allocs && S.me.allocs[g.round], sum.lockN, sum.count], html: selfLockedHTML } : { id: "alloc", key: [g.round, S.cur, S.save, fz, S.ask, S.locking, S.lockErr], html: allocHTML });
       if (done > 0) list.push({ id: "board", key: [rk], html: () => boardHTML(done) }, { id: "hist", key: [done, fz], html: () => historyHTML(done, false) });
       return render(list);
     }
@@ -374,8 +390,20 @@ TM.mountPlayer = (root, store, gid, opts = {}) => {
     const g = S.game; if (!g) return;
     if (b.hasAttribute("data-submit-pred")) { const t = TM.cleanT(S.pdraft, TM.PKEYS); store.update(meP, { pred: t, updatedAt: Date.now() }).then(draw).catch(() => {}); return; }
     if (b.dataset.pact) { const k = b.closest(".arow").dataset.k, s = TM.sumT(S.pdraft); if (b.dataset.pact === "inc" && s < 10) S.pdraft[k]++; if (b.dataset.pact === "dec" && S.pdraft[k] > 0) S.pdraft[k]--; S.pdraft = { ...S.pdraft }; return draw(); }
-    if (g.phase !== "open" || !S.cur) return;
+    if (g.phase !== "open" || !S.cur || selfLocked()) return;
     const r = S.cur.r;
+    if (b.dataset.lock) {
+      if (b.dataset.lock === "ask") { S.ask = true; S.lockErr = ""; return draw(); }
+      if (b.dataset.lock === "no") { S.ask = false; return draw(); }
+      if (S.locking) return;
+      const t = tenthsView(); if (!(isHold() || TM.sumT(t) === 10)) { S.ask = false; return draw(); }
+      clearTimeout(saveTimer); pending = null; S.locking = true; S.lockErr = ""; draw();
+      const val = isHold() ? null : TM.cleanT(t);
+      store.update(meP, { [`allocs.${r}`]: val, [`locks.${r}`]: true, updatedAt: Date.now() })
+        .then(() => { S.locking = false; S.ask = false; S.save = "saved"; S.cur = { ...S.cur, val, touched: true, fresh: false }; draw(); })
+        .catch(() => { S.locking = false; S.lockErr = "鎖定失敗，請檢查網路後再按一次。"; draw(); });
+      return;
+    }
     if (b.dataset.preset) {
       const p = b.dataset.preset; let val;
       if (p === "hold") val = null; else { val = {}; if (p === "even") TM.KEYS.forEach(k => val[k] = 2); if (p === "cash") val.cash = 10; }
@@ -417,12 +445,12 @@ TM.mountBoard = (root, store, gid, opts = {}) => {
     }
     const head = (t, s) => `<div class="flex flex-wrap items-end justify-between gap-4 py-8"><h1 class="text-5xl font-black tracking-tight">${t}</h1><p class="text-xl text-ink2">${s}</p></div>`;
     if (g.phase === "open") {
-      const list = [{ id: "hd", key: [g.round, sum.sent, sum.count], html: () => head(`${TM.YEAR[g.round]} 年：分配中`, `已送出 <b class="tnum text-ink">${sum.sent || 0}</b> / ${sum.count || 0} 人`) }];
+      const list = [{ id: "hd", key: [g.round, sum.lockN, sum.count], html: () => head(`${TM.YEAR[g.round]} 年：分配中`, `已鎖定 <b class="tnum text-ink">${sum.lockN || 0}</b> / ${sum.count || 0} 人`) }];
       if (done > 0) list.push({ id: "rk" + done, key: hashOf(sum.rankings && sum.rankings[done]), html: () => rankBlock(done) });
       return render(list);
     }
     if (g.phase === "locked") return render([{ id: "hd", key: [g.round], html: () => head(`${TM.YEAR[g.round]} 年：已鎖定`, "五年後揭曉") }, { id: "dist", key: hashOf(sum.dist && sum.dist[g.round]), html: () => ui.card(ui.head("全班押在哪", `${(sum.distN || {})[g.round] || 0} 人`) + (sum.dist && sum.dist[g.round] ? `<div class="text-lg">${TM.distBar(sum.dist[g.round])}</div>` : `<p class="text-ink2">統計中…</p>`)) }]);
-    if (g.phase === "final") return render([{ id: "hd", key: "f", html: () => head("20 年後，最後排名", "2006 年 1 月 → 2026 年 10 月") }, { id: "rk4", key: hashOf(sum.rankings && sum.rankings[4]), html: () => rankBlock(4) }]);
+    if (g.phase === "final") return render([{ id: "hd", key: "f", html: () => head("20 年後，最後排名", "2006 年初 → 2025 年底") }, { id: "rk4", key: hashOf(sum.rankings && sum.rankings[4]), html: () => rankBlock(4) }]);
     return render([{ id: "hd", key: [sum.pred && sum.pred.n], html: () => head("2026 → 2031，全班看好哪裡？", `${(sum.pred && sum.pred.n) || 0} 人送出`) }, { id: "pred", key: hashOf(sum.pred), html: () => ui.card(sum.pred && sum.pred.n ? `<div class="text-lg">${barsHTML(TM.PKEYS.map(k => [k, sum.pred.agg[k] || 0]).sort((a, b) => b[1] - a[1]), Math.max(...TM.PKEYS.map(k => sum.pred.agg[k] || 0)) || 1)}</div>` : `<p class="text-ink2">還沒有人送出。</p>`) }]);
     function rankBlock(d) {
       const list = (sum.rankings && sum.rankings[d]) || []; const ch = d < 5 ? TM.eraChart(`${pre}-e${d}`, d - 1, "lg") : null;
