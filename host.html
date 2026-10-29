@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>光電時光機・主持人控制台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+if (window.tailwind) tailwind.config = { theme: { extend: {
+  colors: { paper: "#F7F5F0", line: "#E2DFD7", mist: "#EAE6DF", ink: "#1C1D1B", ink2: "#6E6D68", brand: { DEFAULT: "#283D32", hover: "#1E2E25" }, accent: "#9C6B43", up: "#B0503A", down: "#2F5D46" },
+  fontFamily: { sans: ["Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "system-ui", "sans-serif"] }
+} } };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+</head>
+<body>
+<header class="border-b border-line">
+  <div class="gutter mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-3 py-4">
+    <p class="text-lg font-black tracking-tight">光電時光機・主持人控制台</p>
+    <p class="text-sm text-ink2" id="gcode"></p>
+  </div>
+</header>
+<main id="app" class="gutter mx-auto max-w-3xl space-y-6 pb-20 pt-6"></main>
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="game.js"></script>
+<script type="module">
+import { createFirebaseStore } from "./firebase-store.js";
+TM.injectCSS();
+const app = document.getElementById("app");
+const ui = TM.ui, esc = TM.esc;
+const msg = (t, d) => { app.innerHTML = ui.card(`<h1 class="text-2xl font-bold">${t}</h1><p class="mt-2 text-base text-ink2">${d}</p>`); };
+const rand = (n, set) => Array.from(crypto.getRandomValues(new Uint32Array(n)), x => set[x % set.length]).join("");
+const qs = new URLSearchParams(location.search);
+let gid = (qs.get("g") || "").toUpperCase(), key = qs.get("k") || "";
+if (!gid) {
+  gid = rand(6, "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"); key = rand(16, "abcdefghijkmnpqrstuvwxyz23456789");
+  history.replaceState(null, "", `?g=${gid}&k=${key}`);
+}
+document.getElementById("gcode").textContent = `遊戲代碼 ${gid}`;
+const here = new URL(location.href);
+const playerUrl = new URL(`index.html?g=${gid}`, here).href;
+const boardUrl = new URL(`board.html?g=${gid}`, here).href;
+const hostUrl = new URL(`host.html?g=${gid}&k=${key}`, here).href;
+const links = ui.card(ui.head("網址", "請把這一頁加入書籤") + `<dl class="space-y-4 text-base">
+  <div><dt class="font-semibold">玩家（給全班掃 QR code）</dt><dd class="mt-1 break-all text-ink2">${esc(playerUrl)}</dd></div>
+  <div><dt class="font-semibold">大螢幕排行榜（選用）</dt><dd class="mt-1 break-all text-ink2"><a class="underline" href="${esc(boardUrl)}" target="_blank" rel="noopener">${esc(boardUrl)}</a></dd></div>
+  <div><dt class="font-semibold">控制台備援（含主持人金鑰，只給組員）</dt><dd class="mt-1 break-all text-ink2">${esc(hostUrl)}</dd><dd class="mt-1 text-sm text-ink2">另一台裝置打開這個網址，也能操作同一場遊戲。</dd></div></dl>`);
+if (!window.TM_FIREBASE || !TM_FIREBASE.apiKey) msg("還沒有填 Firebase 設定", "請先把 firebaseConfig 貼進 config.js。沒有網路時可以用 practice.html 練習模式。");
+else {
+  app.innerHTML = `<p class="py-10 text-center text-ink2">連線中…</p>`;
+  try { const store = await createFirebaseStore(TM_FIREBASE); TM.mountHost(app, store, gid, { hostKey: key, playerUrl, links }); }
+  catch (e) { console.error(e); msg("連線失敗", "請確認網路後重新整理這一頁。"); }
+}
+</script>
+</body>
+</html>

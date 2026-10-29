@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+    function gameData(gid) {
+      return get(/databases/$(database)/documents/games/$(gid)).data;
+    }
+    function isHost(gid) {
+      return signedIn() && (
+        gameData(gid).hostUid == request.auth.uid ||
+        exists(/databases/$(database)/documents/games/$(gid)/hosts/$(request.auth.uid))
+      );
+    }
+
+    match /games/{gid} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.resource.data.hostUid == request.auth.uid;
+      allow update: if isHost(gid) && request.resource.data.hostUid == resource.data.hostUid;
+
+      // 遊戲統計（人數、鎖定時的配置、排名），只有主持人能寫
+      match /meta/{docId} {
+        allow read: if signedIn();
+        allow write: if isHost(gid);
+      }
+
+      // 主持人金鑰，任何人都讀不到
+      match /private/{docId} {
+        allow read: if false;
+        allow create: if signedIn() && gameData(gid).hostUid == request.auth.uid;
+      }
+
+      // 備援裝置用金鑰取得主持權限
+      match /hosts/{uid} {
+        allow read: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.key == get(/databases/$(database)/documents/games/$(gid)/private/key).data.key;
+      }
+
+      // 每位玩家只能寫自己的資料
+      match /players/{uid} {
+        allow read: if signedIn();
+        allow create, update: if signedIn() && request.auth.uid == uid
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 16;
+      }
+    }
+  }
+}

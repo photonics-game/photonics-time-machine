@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>光電時光機・練習模式</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+if (window.tailwind) tailwind.config = { theme: { extend: {
+  colors: { paper: "#F7F5F0", line: "#E2DFD7", mist: "#EAE6DF", ink: "#1C1D1B", ink2: "#6E6D68", brand: { DEFAULT: "#283D32", hover: "#1E2E25" }, accent: "#9C6B43", up: "#B0503A", down: "#2F5D46" },
+  fontFamily: { sans: ["Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "system-ui", "sans-serif"] }
+} } };
+</script>
+</head>
+<body>
+<header class="border-b border-line">
+  <div class="gutter mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-x-6 gap-y-3 py-4">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span class="text-lg font-black tracking-tight">光電時光機</span>
+      <span class="rounded-md bg-mist px-2 py-0.5 text-sm font-medium">練習模式</span>
+      <span class="text-sm text-ink2">不需要網路，另外 35 位同學由電腦模擬</span>
+    </div>
+    <div class="flex flex-wrap gap-2" role="tablist" aria-label="切換畫面" id="tabs">
+      <button type="button" role="tab" data-tab="host" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base lg:hidden">控制台</button>
+      <button type="button" role="tab" data-tab="phone" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base">你的手機</button>
+      <button type="button" role="tab" data-tab="board" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base">大螢幕排行榜</button>
+    </div>
+  </div>
+</header>
+<main class="gutter mx-auto grid max-w-7xl grid-cols-1 gap-8 pb-20 pt-6 lg:grid-cols-12 lg:gap-10">
+  <section id="pane-host" class="min-w-0 space-y-6 lg:col-span-5" aria-label="主持人控制台">
+    <h2 class="hidden text-sm font-semibold text-ink2 lg:block">主持人控制台（組員操作）</h2>
+    <div id="host" class="space-y-6"></div>
+  </section>
+  <section id="pane-phone" class="min-w-0 lg:col-span-7" aria-label="你的手機畫面">
+    <h2 class="mb-3 hidden text-sm font-semibold text-ink2 lg:block">你的手機畫面（台下同學看到的）</h2>
+    <div class="mx-auto max-w-[420px] rounded-[28px] border-8 border-ink/90 bg-paper p-3 sm:p-4">
+      <div id="phone" class="max-h-[78vh] space-y-5 overflow-y-auto overscroll-contain pr-1"></div>
+    </div>
+  </section>
+  <section id="pane-board" class="min-w-0 lg:col-span-7" aria-label="大螢幕排行榜" hidden>
+    <h2 class="mb-3 hidden text-sm font-semibold text-ink2 lg:block">大螢幕排行榜（選用，結算時切過去幾秒）</h2>
+    <div id="board" class="space-y-8 rounded-lg border border-line bg-paper p-4 sm:p-6"></div>
+  </section>
+</main>
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="game.js"></script>
+<script src="local-store.js"></script>
+<script>
+(async () => {
+  TM.injectCSS();
+  const db = new TM.LocalDB(), gid = "PRACTICE";
+  const host = TM.mountHost(document.getElementById("host"), TM.createLocalStore(db, "host"), gid, { practice: true, hostKey: "practice", lockDelay: 900 });
+  await host.ready;
+  TM.mountPlayer(document.getElementById("phone"), TM.createLocalStore(db, "you"), gid, { practice: true, prefix: "you" });
+  TM.mountBoard(document.getElementById("board"), TM.createLocalStore(db, "board"), gid, { practice: true, prefix: "bd" });
+  TM.startBots(db, gid, 35, +(new URLSearchParams(location.search).get("speed")) || 1);
+  let tab = "phone";
+  const panes = { host: document.getElementById("pane-host"), phone: document.getElementById("pane-phone"), board: document.getElementById("pane-board") };
+  const lg = matchMedia("(min-width: 1024px)");
+  function layout() {
+    if (lg.matches && tab === "host") tab = "phone";
+    panes.host.hidden = !lg.matches && tab !== "host";
+    panes.phone.hidden = tab !== "phone";
+    panes.board.hidden = tab !== "board";
+    document.querySelectorAll("#tabs .tab").forEach(b => { const on = b.dataset.tab === tab; b.setAttribute("aria-selected", on); b.classList.toggle("bg-brand", on); b.classList.toggle("text-white", on); b.classList.toggle("border-brand", on); b.classList.toggle("bg-white", !on); });
+  }
+  document.getElementById("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; layout(); window.scrollTo(0, 0); });
+  lg.addEventListener("change", layout); layout();
+})();
+</script>
+</body>
+</html>
