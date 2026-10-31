@@ -13,6 +13,8 @@
 | `config.js` | 填 Firebase 設定的地方 |
 | `firestore.rules` | Firestore 安全規則，要貼到 Firebase 主控台 |
 | `data.js` `core.js` `game.js` `local-store.js` `firebase-store.js` | 程式與股價資料 |
+| `tailwind-3.4.17.js` | Tailwind 的本機檔案（不連外部網站也能顯示版面） |
+| `qrcode-1.4.4.min.js` | QR code 產生器的本機檔案 |
 
 ## 一、先用練習模式彩排
 

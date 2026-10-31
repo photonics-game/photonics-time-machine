@@ -6,15 +6,16 @@
 <title>光電時光機・排行榜</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap">
-<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap"></noscript>
+<script src="tailwind-3.4.17.js"></script>
 <script>
 if (window.tailwind) tailwind.config = { theme: { extend: {
   colors: { paper: "#F7F5F0", line: "#E2DFD7", mist: "#EAE6DF", ink: "#1C1D1B", ink2: "#6E6D68", brand: { DEFAULT: "#283D32", hover: "#1E2E25" }, accent: "#9C6B43", up: "#B0503A", down: "#2F5D46" },
   fontFamily: { sans: ["Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "system-ui", "sans-serif"] }
 } } };
 </script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="qrcode-1.4.4.min.js"></script>
 </head>
 <body>
 <main id="app" class="gutter mx-auto max-w-7xl space-y-8 pb-16 pt-6"></main>
