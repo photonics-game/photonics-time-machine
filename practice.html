@@ -9,7 +9,7 @@
 <script src="tailwind-3.4.17.js"></script>
 <script>
 if (window.tailwind) tailwind.config = { theme: { extend: {
-  colors: { paper: "#F7F5F0", line: "#E2DFD7", mist: "#EAE6DF", ink: "#1C1D1B", ink2: "#6E6D68", brand: { DEFAULT: "#283D32", hover: "#1E2E25" }, accent: "#9C6B43", up: "#B0503A", down: "#2F5D46" },
+  colors: { paper: "#F7F5F0", line: "#E2DFD7", mist: "#EAE6DF", ink: "#1C1D1B", ink2: "#64635E", brand: { DEFAULT: "#283D32", hover: "#1E2E25" }, accent: "#9C6B43", up: "#B0503A", down: "#2F5D46" },
   fontFamily: { sans: ["Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", "system-ui", "sans-serif"] }
 } } };
 </script>
@@ -23,25 +23,25 @@ if (window.tailwind) tailwind.config = { theme: { extend: {
       <span class="text-sm text-ink2">不需要網路，另外 35 位同學由電腦模擬</span>
     </div>
     <div class="flex flex-wrap gap-2" role="tablist" aria-label="切換畫面" id="tabs">
-      <button type="button" role="tab" data-tab="host" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base lg:hidden">控制台</button>
-      <button type="button" role="tab" data-tab="phone" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base">你的手機</button>
-      <button type="button" role="tab" data-tab="board" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base">大螢幕排行榜</button>
+      <button type="button" role="tab" id="tab-host" aria-controls="pane-host" data-tab="host" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">控制台</button>
+      <button type="button" role="tab" id="tab-phone" aria-controls="pane-phone" data-tab="phone" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">你的手機</button>
+      <button type="button" role="tab" id="tab-board" aria-controls="pane-board" data-tab="board" class="tab inline-flex h-11 items-center rounded-lg border border-line bg-white px-4 text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand">大螢幕</button>
     </div>
   </div>
 </header>
 <main class="gutter mx-auto grid max-w-7xl grid-cols-1 gap-8 pb-20 pt-6 lg:grid-cols-12 lg:gap-10">
-  <section id="pane-host" class="min-w-0 space-y-6 lg:col-span-5" aria-label="主持人控制台">
+  <section id="pane-host" role="tabpanel" class="min-w-0 space-y-6 lg:col-span-5" aria-label="主持人控制台">
     <h2 class="hidden text-sm font-semibold text-ink2 lg:block">主持人控制台（組員操作）</h2>
     <div id="host" class="space-y-6"></div>
   </section>
-  <section id="pane-phone" class="min-w-0 lg:col-span-7" aria-label="你的手機畫面">
+  <section id="pane-phone" role="tabpanel" class="min-w-0 lg:col-span-7" aria-label="你的手機畫面">
     <h2 class="mb-3 hidden text-sm font-semibold text-ink2 lg:block">你的手機畫面（台下同學看到的）</h2>
     <div class="mx-auto max-w-[420px] rounded-[28px] border-8 border-ink/90 bg-paper p-3 sm:p-4">
       <div id="phone" class="max-h-[78vh] space-y-5 overflow-y-auto overscroll-contain pr-1"></div>
     </div>
   </section>
-  <section id="pane-board" class="min-w-0 lg:col-span-7" aria-label="大螢幕排行榜" hidden>
-    <h2 class="mb-3 hidden text-sm font-semibold text-ink2 lg:block">大螢幕排行榜（選用，結算時切過去幾秒）</h2>
+  <section id="pane-board" role="tabpanel" class="min-w-0 lg:col-span-7" aria-label="大螢幕" hidden>
+    <h2 class="mb-3 hidden text-sm font-semibold text-ink2 lg:block">大螢幕（揭曉和排名，結算時投影）</h2>
     <div id="board" class="space-y-8 rounded-lg border border-line bg-paper p-4 sm:p-6"></div>
   </section>
 </main>
@@ -62,13 +62,21 @@ if (window.tailwind) tailwind.config = { theme: { extend: {
   const panes = { host: document.getElementById("pane-host"), phone: document.getElementById("pane-phone"), board: document.getElementById("pane-board") };
   const lg = matchMedia("(min-width: 1024px)");
   function layout() {
-    if (lg.matches && tab === "host") tab = "phone";
-    panes.host.hidden = !lg.matches && tab !== "host";
-    panes.phone.hidden = tab !== "phone";
-    panes.board.hidden = tab !== "board";
-    document.querySelectorAll("#tabs .tab").forEach(b => { const on = b.dataset.tab === tab; b.setAttribute("aria-selected", on); b.classList.toggle("bg-brand", on); b.classList.toggle("text-white", on); b.classList.toggle("border-brand", on); b.classList.toggle("bg-white", !on); });
+    /* 寬螢幕：「控制台」和「你的手機」都顯示控制台＋手機並排；「大螢幕」要投影，改用全寬，按「控制台」就回來操作 */
+    const wide = lg.matches, board = tab === "board";
+    panes.host.hidden = board || (!wide && tab !== "host");
+    panes.phone.hidden = board || (!wide && tab !== "phone");
+    panes.board.hidden = !board;
+    panes.board.classList.toggle("lg:col-span-12", board);
+    panes.board.classList.toggle("lg:col-span-7", !board);
+    document.querySelectorAll("#tabs .tab").forEach(b => { const on = b.dataset.tab === tab || (wide && !board && b.dataset.tab !== "board");
+      b.setAttribute("aria-selected", b.dataset.tab === tab); b.tabIndex = b.dataset.tab === tab ? 0 : -1;
+      b.classList.toggle("bg-brand", on); b.classList.toggle("text-white", on); b.classList.toggle("border-brand", on); b.classList.toggle("bg-white", !on); });
   }
-  document.getElementById("tabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; layout(); window.scrollTo(0, 0); });
+  const tabsEl = document.getElementById("tabs");
+  tabsEl.addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (!b) return; tab = b.dataset.tab; layout(); window.scrollTo(0, 0); });
+  /* 方向鍵切換分頁 */
+  tabsEl.addEventListener("keydown", e => { if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return; const bs = [...tabsEl.querySelectorAll(".tab")], i = bs.findIndex(b => b.dataset.tab === tab), n = bs[(i + (e.key === "ArrowRight" ? 1 : bs.length - 1)) % bs.length]; tab = n.dataset.tab; layout(); n.focus(); e.preventDefault(); });
   lg.addEventListener("change", layout); layout();
 })();
 </script>
